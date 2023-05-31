@@ -1,10 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 FILE=".solidarity"
+LOG_LEVEL=-2
 
 throw() {
   if [[ $LOG_LEVEL -le 1 ]] ; then
-    echo -e "\033[0;31m    ✖️ $1\033[0m"
+    echo -e "\033[0;31m ✖️ $1\033[0m"
   fi
   exit 1
 }
@@ -23,7 +24,7 @@ info() {
 
 debug() {
   if [[ $LOG_LEVEL -le -2 ]] ; then
-    echo -ne "\n\033[1;30m$(date +%Y-%m-%dT%H:%M:%S): $1\033[0m";
+    echo -e "\n\033[1;30m      → $1\033[0m";
   fi
 }
 
@@ -35,62 +36,73 @@ ok() {
 
 if [ -f "$FILE" ]; then
   jq -r '.requirements | to_entries[] | "\(.key) \(.value)"' $FILE | while read SECTION RULES; do
-    # echo "--$RULES--"; exit 0;
     info "Checking $SECTION"
     for X in $(echo "$RULES" | jq -r '.[] | @base64'); do
-      # echo "--$V--";
       _jq() {
-        echo ${X} | base64 --decode | jq -r ${1}
+        echo "${X}" | base64 --decode | jq -r ${1}
       }
+
       PLATFORM=$(_jq '.platform')
       RULE=$(_jq '.rule')
       ENV_PLATFORM=`perl -pe 's/(\w)/\L$1/g;' <<< "$(uname -s)"`
+      KEYS=(`_jq 'keys[]'`)
 
       if [ "$PLATFORM" == 'null' ] || [ "$PLATFORM" == "$ENV_PLATFORM" ] ; then
         case "$RULE" in
           "cli")
-            BINARY=$(_jq '.binary')
-            if [ -z "$SEMVER" ]; then
+            BINARY=""
+            case "${KEYS[@]}" in *"binary"*) BINARY=$(_jq '.binary') ;; esac
+
+            SEMVER=""
+            case "${KEYS[@]}" in *"semver"*) SEMVER=$(_jq '.semver') ;; esac
+
+            ERROR=""
+            case "${KEYS[@]}" in *"error"*) ERROR=$(_jq '.error') ;; esac
+
+            VERSION="--version"
+            case "${KEYS[@]}" in *"version"*) VERSION=$(_jq '.version') ;; esac
+
+            if [ -n "$SEMVER" ] ; then
+              SEMVER_MATCH="(\d+(\.\d+)?(\.\d+)?)"
+              INSTALLED_VERSION=$($BINARY $VERSION | egrep -oh1 "$SEMVER_MATCH" | head -1)
+              WANTED_VERSION=$(echo "$SEMVER" | egrep -oh1 "$SEMVER_MATCH" | head -1)
+              if [ -n "`semver "$INSTALLED_VERSION" -c -r "$SEMVER"`" ] ; then
+                ok "'$BINARY' binary $SEMVER"
+              else
+                warn "'$BINARY' binary $SEMVER"
+                debug "`echo "$ERROR" | sed -e "s/{{installedVersion}}/$INSTALLED_VERSION/;s/{{wantedVersion}}/$WANTED_VERSION/"`"
+              fi
+            else
               if [ -n "$(which $BINARY)" ] ; then
                 ok "'$BINARY' binary"
               else
                 warn "'$BINARY' binary"
               fi
-            else
-              SEMVER=$(_jq '.semver')
-              ERROR=$(_jq '.error')
-              INSTALLED_VERSION=$($BINARY --version | sed -E 's/.*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-              if [ -n "$SEMVER" ] && [ -n `semver "$INSTALLED_VERSION" -r "$SEMVER" | wc -l` ]; then
-                ok "'$BINARY' binary $SEMVER"
-              else
-                WANTED_VERSION=$(semver -r "$SEMVER")
-                MESSAGE=$(echo "$ERROR" | mustache - "installedVersion=$INSTALLED_VERSION wantedVersion=$WANTED_VERSION")
-                warn "'$BINARY' binary $SEMVER"
-                echo "      → $MESSAGE"
-              fi
             fi
-            ;;
+          ;;
           "env")
-            VARIABLE=$(_jq '.variable')
-            # echo "  VARIABLE='$VARIABLE'";
-            # echo "Checking $SECTION"
+            VARIABLE=""
+            case "${KEYS[@]}" in *"variable"*) VARIABLE=$(_jq '.variable') ;; esac
+
             if [ ! -z "${!VARIABLE-}" ]; then
               ok "'$VARIABLE' exists"
             else
               warn "'$VARIABLE' does not exist"
             fi
-            ;;
+          ;;
           "shell")
-            COMMAND=$(_jq '.command')
-            MATCH=$(_jq '.match')
-            # echo "  COMMAND='$COMMAND' MATCH='$MATCH'";
-            # echo "Checking $SECTION"
+            COMMAND=""
+            case "${KEYS[@]}" in *"command"*) COMMAND=$(_jq '.command') ;; esac
+
+            MATCH=""
+            case "${KEYS[@]}" in *"match"*) MATCH=$(_jq '.match') ;; esac
+
             if eval "$COMMAND" | grep -qE "$MATCH"; then
               ok "'$COMMAND' matches '$MATCH'"
             else
               warn "'$COMMAND' does not match '$MATCH'"
             fi
-            ;;
+          ;;
         esac
       fi
     done
