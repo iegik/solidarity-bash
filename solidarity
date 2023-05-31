@@ -1,0 +1,100 @@
+#!/bin/bash
+set -eo pipefail
+FILE=".solidarity"
+
+throw() {
+  if [[ $LOG_LEVEL -le 1 ]] ; then
+    echo -e "\033[0;31m    ✖️ $1\033[0m"
+  fi
+  exit 1
+}
+
+warn() {
+  if [[ $LOG_LEVEL -le 0 ]] ; then
+    echo -e "\n\033[0;33m    ✖️ $1\033[0m"
+  fi
+}
+
+info() {
+  if [[ $LOG_LEVEL -le -1 ]] ; then
+    echo -e "\n\033[1;30m$1\033[0m";
+  fi
+}
+
+debug() {
+  if [[ $LOG_LEVEL -le -2 ]] ; then
+    echo -ne "\n\033[1;30m$(date +%Y-%m-%dT%H:%M:%S): $1\033[0m";
+  fi
+}
+
+ok() {
+  if [[ $LOG_LEVEL -le -1 ]] ; then
+    echo -e "\033[2K\r\033[0;32m    ✔️ $1\033[0m"
+  fi
+}
+
+if [ -f "$FILE" ]; then
+  jq -r '.requirements | to_entries[] | "\(.key) \(.value)"' $FILE | while read SECTION RULES; do
+    # echo "--$RULES--"; exit 0;
+    info "Checking $SECTION"
+    for X in $(echo "$RULES" | jq -r '.[] | @base64'); do
+      # echo "--$V--";
+      _jq() {
+        echo ${X} | base64 --decode | jq -r ${1}
+      }
+      PLATFORM=$(_jq '.platform')
+      RULE=$(_jq '.rule')
+      ENV_PLATFORM=`perl -pe 's/(\w)/\L$1/g;' <<< "$(uname -s)"`
+
+      if [ "$PLATFORM" == 'null' ] || [ "$PLATFORM" == "$ENV_PLATFORM" ] ; then
+        case "$RULE" in
+          "cli")
+            BINARY=$(_jq '.binary')
+            if [ -z "$SEMVER" ]; then
+              if [ -n "$(which $BINARY)" ] ; then
+                ok "'$BINARY' binary"
+              else
+                warn "'$BINARY' binary"
+              fi
+            else
+              SEMVER=$(_jq '.semver')
+              ERROR=$(_jq '.error')
+              INSTALLED_VERSION=$($BINARY --version | sed -E 's/.*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+              if [ -n "$SEMVER" ] && [ -n `semver "$INSTALLED_VERSION" -r "$SEMVER" | wc -l` ]; then
+                ok "'$BINARY' binary $SEMVER"
+              else
+                WANTED_VERSION=$(semver -r "$SEMVER")
+                MESSAGE=$(echo "$ERROR" | mustache - "installedVersion=$INSTALLED_VERSION wantedVersion=$WANTED_VERSION")
+                warn "'$BINARY' binary $SEMVER"
+                echo "      → $MESSAGE"
+              fi
+            fi
+            ;;
+          "env")
+            VARIABLE=$(_jq '.variable')
+            # echo "  VARIABLE='$VARIABLE'";
+            # echo "Checking $SECTION"
+            if [ ! -z "${!VARIABLE-}" ]; then
+              ok "'$VARIABLE' exists"
+            else
+              warn "'$VARIABLE' does not exist"
+            fi
+            ;;
+          "shell")
+            COMMAND=$(_jq '.command')
+            MATCH=$(_jq '.match')
+            # echo "  COMMAND='$COMMAND' MATCH='$MATCH'";
+            # echo "Checking $SECTION"
+            if eval "$COMMAND" | grep -qE "$MATCH"; then
+              ok "'$COMMAND' matches '$MATCH'"
+            else
+              warn "'$COMMAND' does not match '$MATCH'"
+            fi
+            ;;
+        esac
+      fi
+    done
+  done
+else
+  throw ".solidarity file not found";
+fi
