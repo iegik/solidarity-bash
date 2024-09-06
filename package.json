@@ -1,0 +1,30 @@
+{
+  "name": "solidarity-bash",
+  "version": "1.0.0",
+  "description": "A lightweight Bash script version of solidarity",
+  "main": "index.js",
+  "bin": {
+    "solidarity-bash": "./solidarity"
+  },
+  "scripts": {
+    "test": "./silidarity"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iegik/solidarity-bash.git"
+  },
+  "keywords": [
+    "solidarity",
+    "bash",
+    "requirements",
+    "check",
+    "semver",
+    "environment"
+  ],
+  "author": "Arturs Jansons",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/iegik/solidarity-bash/issues"
+  },
+  "homepage": "https://github.com/iegik/solidarity-bash#readme"
+}
