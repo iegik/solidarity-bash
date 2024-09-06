@@ -4,6 +4,14 @@ _Inspired by [solidarity](https://github.com/infinitered/solidarity) npm [packag
 
 A lightweight Bash script version of solidarity
 
+## Usage
+
+Create a `.solidarity` file in the root of your project as described below in [Example](#Example) section. And run following command:
+
+```bash
+npx solidarity-bash
+```
+
 - [x] Grouping (without spaces)
 - [x] Custom messages (`{{installedVersion}}` and `{{wantedVersion}}` variables supported)
 - [x] Versioning support (SemVer)
