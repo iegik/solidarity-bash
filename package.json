@@ -7,7 +7,7 @@
     "solidarity-bash": "./solidarity"
   },
   "scripts": {
-    "test": "./silidarity"
+    "test": "./solidarity"
   },
   "repository": {
     "type": "git",

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json.schemastore.org/solidaritySchema",
+  "requirements": {
+    "Git": [
+      {
+        "rule": "shell",
+        "command": "git config user.email",
+        "match": ".+@.+"
+      }
+    ]
+  }
+}
