@@ -52,7 +52,7 @@ npx solidarity-bash
         "semver": ">=1.15.5 <2.0.0",
         "error": "You have ffi@{{installedVersion}}. Fix with `gem install ffi --version {{wantedVersion}} --user-install`. More info https://github.com/ffi/ffi",
         "platform": "darwin"
-      },
+      }
     ],
     "Git": [
       {
